@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Control 4 · Ingreso/Salida | PPS IKEA</title>
+<style>
+  :root{
+    --ikea-blue:#0058A3;
+    --ikea-yellow:#FFDB00;
+    --gray-bg:#f2f3f5;
+    --danger:#c0392b;
+    --ok:#1e8e3e;
+    --text:#111;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--gray-bg);color:var(--text);}
+  input[type=text]:not(#cfgScriptUrl),input[type=number]{text-transform:uppercase;}
+  input[type=text]:not(#cfgScriptUrl)::placeholder{text-transform:none;}
+  header{
+    background:var(--ikea-blue);color:#fff;padding:14px 16px;
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+    position:sticky;top:0;z-index:50;box-shadow:0 2px 6px rgba(0,0,0,.15);
+  }
+  header .side{font-size:12px;opacity:.9;}
+  header .side.right{text-align:right;}
+  header h1{grid-column:2;font-size:16px;margin:0;text-align:center;letter-spacing:.3px;}
+  header .tag{
+    display:inline-block;background:var(--ikea-yellow);color:var(--ikea-blue);
+    font-weight:700;font-size:11px;padding:2px 8px;border-radius:10px;margin-top:2px;
+  }
+  #configBanner{display:none;background:#fff3cd;color:#7a5b00;padding:10px 14px;font-size:12.5px;text-align:center;font-weight:600;}
+  #configBanner button{margin-left:6px;padding:4px 10px;border:none;border-radius:6px;background:var(--ikea-blue);color:#fff;font-weight:700;font-size:12px;}
+  .tabs{display:flex;background:#fff;position:sticky;top:58px;z-index:40;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+  .tab{flex:1;text-align:center;padding:14px 4px;font-weight:700;font-size:15px;color:#666;border-bottom:3px solid transparent;cursor:pointer;}
+  .tab.active{color:var(--ikea-blue);border-bottom-color:var(--ikea-blue);}
+  main{max-width:560px;margin:0 auto;padding:16px;padding-bottom:40px;}
+  .card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  .card h2{font-size:15px;margin:0 0 12px;color:var(--ikea-blue);}
+  label{display:block;font-size:12.5px;font-weight:600;color:#444;margin:12px 0 4px;}
+  label:first-child{margin-top:0;}
+  input[type=text],input[type=number],select{
+    width:100%;padding:12px 12px;border:1px solid #ccc;border-radius:8px;font-size:16px;background:#fafafa;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--ikea-blue);background:#fff;}
+  .seg{display:flex;gap:8px;margin-top:4px;}
+  .seg button{flex:1;padding:11px;border-radius:8px;border:1.5px solid #ccc;background:#fff;font-size:13.5px;font-weight:600;color:#555;cursor:pointer;}
+  .seg button.active{background:var(--ikea-blue);border-color:var(--ikea-blue);color:#fff;}
+  .btn-primary{
+    width:100%;padding:16px;margin-top:18px;border:none;border-radius:10px;
+    background:var(--ikea-yellow);color:var(--ikea-blue);font-weight:800;font-size:16px;cursor:pointer;letter-spacing:.3px;
+  }
+  .btn-primary:active{transform:scale(.98);}
+  .hint{font-size:12px;color:#888;margin-top:4px;}
+  .found-badge{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+    color:var(--ok);background:#e6f4ea;padding:4px 9px;border-radius:8px;margin-top:6px;
+  }
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;
+    padding:12px 18px;border-radius:10px;font-size:14px;max-width:90%;text-align:center;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.3);
+  }
+  .toast.ok{background:var(--ok);}
+  .toast.err{background:var(--danger);}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px;}
+  .block-modal{background:#fff;border-radius:16px;padding:26px 22px;max-width:400px;width:100%;text-align:center;border:4px solid var(--danger);}
+  .block-modal.info{border-color:var(--ikea-blue);text-align:left;}
+  .block-modal .icon{font-size:44px;}
+  .block-modal h3{color:var(--danger);margin:8px 0;font-size:20px;}
+  .block-modal p{font-size:14px;color:#333;line-height:1.5;}
+  .block-modal .rut{font-weight:800;font-size:17px;margin:6px 0;}
+  .block-modal button{margin-top:16px;width:100%;padding:12px;border-radius:8px;border:none;background:var(--danger);color:#fff;font-weight:700;font-size:14px;}
+  .sync-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;background:#7fda94;}
+  .sync-dot.off{background:#e0a0a0;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .veh-prefix-group{display:flex;}
+  .veh-prefix{
+    display:flex;align-items:center;padding:0 10px;border:1px solid #ccc;border-right:none;
+    border-radius:8px 0 0 8px;background:#eef1f4;color:#555;font-weight:700;font-size:16px;
+  }
+  .veh-prefix-group input{border-radius:0 8px 8px 0;flex:1;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="side" id="clockLeft">--:--</div>
+  <div>
+    <h1>Control de Acceso · Conductores</h1>
+    <div style="text-align:center;"><span class="tag">CONTROL 4 · MODO MÓVIL</span></div>
+  </div>
+  <div class="side right"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">online</span></div>
+</header>
+
+<div id="configBanner">
+  ⚠ Falta configurar el link de Apps Script. Toca aquí para agregarlo →
+  <button id="configBannerBtn">CONFIGURAR</button>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="ingreso">Ingreso</div>
+  <div class="tab" data-tab="salida">Salida</div>
+</div>
+
+<main>
+
+  <!-- ===================== INGRESO ===================== -->
+  <section id="view-ingreso">
+    <div class="card">
+      <h2>Registro de Ingreso</h2>
+
+      <label>Tipo de documento</label>
+      <div class="seg" id="segTipoDoc">
+        <button type="button" class="active" data-val="RUT">RUT Chileno</button>
+        <button type="button" data-val="EXTRANJERO">Extranjero / Pasaporte</button>
+      </div>
+
+      <label id="lblDocIngreso">RUT</label>
+      <input type="text" id="docIngreso" placeholder="12.345.678-9" autocomplete="off">
+      <div class="hint" id="hintDoc"></div>
+      <div id="foundBadge"></div>
+
+      <label>Nombre(s)</label>
+      <input type="text" id="nombreIngreso" placeholder="Nombre completo">
+
+      <label>Apellido(s)</label>
+      <input type="text" id="apellidoIngreso" placeholder="Apellido completo">
+
+      <label>Empresa / Transporte</label>
+      <input type="text" id="empresaIngreso" placeholder="Ej: Transportes Sur Ltda.">
+
+      <label>Cargo</label>
+      <div class="seg" id="segCargo">
+        <button type="button" class="active" data-val="Conductor">Conductor</button>
+        <button type="button" data-val="Peoneta">Peoneta</button>
+        <button type="button" data-val="Supervisor">Supervisor</button>
+      </div>
+
+      <button class="btn-primary" id="btnIngreso">REGISTRAR INGRESO</button>
+    </div>
+  </section>
+
+  <!-- ===================== SALIDA ===================== -->
+  <section id="view-salida" style="display:none;">
+    <div class="card">
+      <h2>Registro de Salida</h2>
+
+      <label>Tipo de documento</label>
+      <div class="seg" id="segTipoDocSalida">
+        <button type="button" class="active" data-val="RUT">RUT Chileno</button>
+        <button type="button" data-val="EXTRANJERO">Extranjero / Pasaporte</button>
+      </div>
+
+      <label id="lblDocSalida">RUT</label>
+      <input type="text" id="docSalida" placeholder="12.345.678-9" autocomplete="off">
+      <div id="salidaInfo" class="hint"></div>
+
+      <label>Andén de carga</label>
+      <input type="text" id="andenSalida" placeholder="Ej: Andén 7">
+
+      <div class="row2">
+        <div>
+          <label>Patente</label>
+          <input type="text" id="patenteSalida" placeholder="AB-CD-12">
+        </div>
+        <div>
+          <label>N° pallets</label>
+          <input type="number" id="palletSalida" placeholder="0" min="0">
+        </div>
+      </div>
+
+      <label>N° Ruta VEH</label>
+      <div class="veh-prefix-group">
+        <span class="veh-prefix">VEH-</span>
+        <input type="text" id="rutaSalidaNum" placeholder="045">
+      </div>
+
+      <label>ID de Ruta</label>
+      <input type="text" id="idRutaSalida" placeholder="Ej: 14493441">
+
+      <button class="btn-primary" id="btnSalida">REGISTRAR SALIDA</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN
+   Esta app comparte el MISMO backend (Google Sheets / Apps Script)
+   que la app principal de Control 4. Todo lo que se registre aquí
+   aparece automáticamente en el Dashboard de la app principal,
+   porque ambas escriben en las mismas hojas "Ingresos" y "Salidas".
+   No hay Dashboard ni panel de administración en esta versión: solo
+   ingreso y salida, para uso del personal de andén.
+   ============================================================ */
+const LS_SCRIPT_URL = "c4_script_url"; // misma clave que la app principal: si ya la configuraste ahí y ambas viven en el mismo dominio, se comparte sola
+const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbXXXXXXXXXXXXXXXXXXXXXXXXXXXX/exec";
+let SCRIPT_URL = localStorage.getItem(LS_SCRIPT_URL) || DEFAULT_SCRIPT_URL;
+function scriptUrlConfigurada(){ return SCRIPT_URL && SCRIPT_URL.indexOf("AKfycbXXXX") === -1; }
+const CHECKPOINT_NAME = "Control 4 (móvil)";
+
+/* ============================================================
+   ESTADO / CACHE LOCAL
+   ============================================================ */
+const LS_CONDUCTORES = "c4_conductores_cache";
+const LS_PENDING = "c4_pending_queue";
+
+function loadJSON(key, fallback){
+  try{ return JSON.parse(localStorage.getItem(key)) || fallback; }catch(e){ return fallback; }
+}
+function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+let conductoresCache = loadJSON(LS_CONDUCTORES, {});
+let pendingQueue = loadJSON(LS_PENDING, []);
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+function normRut(v){ return (v||"").toUpperCase().replace(/[^0-9K]/g,""); }
+function formatRut(v){
+  let clean = normRut(v);
+  if(clean.length < 2) return clean;
+  let dv = clean.slice(-1);
+  let num = clean.slice(0, -1);
+  num = num.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return num + "-" + dv;
+}
+function rutValido(v){
+  let clean = normRut(v);
+  if(clean.length < 2) return false;
+  let dv = clean.slice(-1);
+  let num = clean.slice(0, -1);
+  let suma = 0, mul = 2;
+  for(let i = num.length - 1; i >= 0; i--){
+    suma += parseInt(num[i]) * mul;
+    mul = mul === 7 ? 2 : mul + 1;
+  }
+  let res = 11 - (suma % 11);
+  let dvCalc = res === 11 ? "0" : res === 10 ? "K" : String(res);
+  return dvCalc === dv;
+}
+
+function toast(msg, type){
+  const t = document.createElement("div");
+  t.className = "toast" + (type ? " "+type : "");
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3200);
+}
+
+function updateClock(){
+  const d = new Date();
+  document.getElementById("clockLeft").textContent = d.toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit'});
+}
+setInterval(updateClock, 1000*15); updateClock();
+
+function setOnlineStatus(){
+  const dot = document.getElementById("syncDot");
+  const label = document.getElementById("syncLabel");
+  if(navigator.onLine){ dot.classList.remove("off"); label.textContent = "online"; }
+  else{ dot.classList.add("off"); label.textContent = "sin conexión"; }
+}
+window.addEventListener('online', setOnlineStatus);
+window.addEventListener('offline', setOnlineStatus);
+setOnlineStatus();
+
+/* ============================================================
+   COMUNICACIÓN CON GOOGLE SHEETS (Apps Script)
+   ============================================================ */
+function postToSheet(action, data){
+  const params = new URLSearchParams({action, ...data});
+  return fetch(SCRIPT_URL, {method:"POST", mode:"no-cors", body:params})
+    .then(()=>true)
+    .catch(()=>{
+      pendingQueue.push({action, data, ts:Date.now()});
+      saveJSON(LS_PENDING, pendingQueue);
+      return false;
+    });
+}
+function retryPending(){
+  if(!pendingQueue.length || !navigator.onLine) return;
+  const queue = [...pendingQueue];
+  pendingQueue = [];
+  saveJSON(LS_PENDING, pendingQueue);
+  queue.forEach(item => postToSheet(item.action, item.data));
+}
+setInterval(retryPending, 20000);
+
+let jsonpCounter = 0;
+function jsonpRequest(action, params){
+  return new Promise((resolve) => {
+    jsonpCounter++;
+    const cbName = "c4mcb_" + jsonpCounter;
+    const timeout = setTimeout(()=>{ cleanup(); resolve(null); }, 6000);
+    window[cbName] = function(data){ clearTimeout(timeout); cleanup(); resolve(data); };
+    function cleanup(){ delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
+    const qs = new URLSearchParams({action, callback:cbName, ...params});
+    const script = document.createElement("script");
+    script.src = SCRIPT_URL + "?" + qs.toString();
+    script.onerror = ()=>{ clearTimeout(timeout); cleanup(); resolve(null); };
+    document.body.appendChild(script);
+  });
+}
+
+/* ============================================================
+   SINCRONIZAR CACHE DE CONDUCTORES (autocompletado offline)
+   No se sincroniza la lista de bloqueados: se consulta persona por
+   persona con verificarBloqueo (no requiere PIN ni expone la lista).
+   ============================================================ */
+async function syncCaches(){
+  const cond = await jsonpRequest("getConductores", {});
+  if(cond && cond.data){ conductoresCache = cond.data; saveJSON(LS_CONDUCTORES, conductoresCache); }
+}
+if(scriptUrlConfigurada()) syncCaches();
+setInterval(()=>{ if(scriptUrlConfigurada()) syncCaches(); }, 5*60000);
+
+/* ============================================================
+   CONFIGURACIÓN DEL LINK DE APPS SCRIPT
+   ============================================================ */
+function actualizarBannerConfig(){
+  document.getElementById("configBanner").style.display = scriptUrlConfigurada() ? "none" : "block";
+}
+actualizarBannerConfig();
+
+function abrirConfiguracion(){
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="block-modal info">
+      <h3 style="color:var(--ikea-blue);">Configuración · Apps Script</h3>
+      <p style="font-size:12.5px;color:#555;">Pega la <b>misma URL</b> del Web App que usaste en la app principal (termina en <b>/exec</b>), para que ambas escriban en la misma planilla.</p>
+      <label>URL de Apps Script</label>
+      <input type="text" id="cfgScriptUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" value="${scriptUrlConfigurada() ? SCRIPT_URL : ""}">
+      <button class="btn-primary" id="cfgSaveBtn" style="margin-top:12px;">GUARDAR Y RECARGAR</button>
+      <button style="background:#555;margin-top:8px;width:100%;padding:12px;border:none;border-radius:8px;color:#fff;font-weight:700;" id="cfgCloseBtn">CERRAR</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById("cfgSaveBtn").addEventListener("click", ()=>{
+    const url = document.getElementById("cfgScriptUrl").value.trim();
+    if(!url.startsWith("https://script.google.com/") || !url.endsWith("/exec")){
+      toast("La URL debe empezar con https://script.google.com/ y terminar en /exec", "err");
+      return;
+    }
+    localStorage.setItem(LS_SCRIPT_URL, url);
+    toast("URL guardada. Recargando...", "ok");
+    setTimeout(()=>location.reload(), 800);
+  });
+  document.getElementById("cfgCloseBtn").addEventListener("click", ()=>overlay.remove());
+}
+const CONFIG_PIN = "358097";
+function verificarPinYAbrirConfiguracion(){
+  const pin = prompt("Esta acción está protegida. Ingresa la clave de configuración:");
+  if(pin === null) return;
+  if(pin !== CONFIG_PIN){ toast("Clave incorrecta", "err"); return; }
+  abrirConfiguracion();
+}
+document.getElementById("configBannerBtn").addEventListener("click", verificarPinYAbrirConfiguracion);
+
+/* Fuerza mayúsculas reales en campos de texto libre */
+function forzarMayusculas(ids){
+  ids.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener("input", ()=>{
+      const pos = el.selectionStart;
+      el.value = el.value.toUpperCase();
+      if(pos !== null) el.setSelectionRange(pos, pos);
+    });
+  });
+}
+forzarMayusculas(["nombreIngreso","apellidoIngreso","empresaIngreso","andenSalida","patenteSalida","rutaSalidaNum","idRutaSalida"]);
+
+/* ============================================================
+   TABS
+   ============================================================ */
+document.querySelectorAll(".tab").forEach(tab=>{
+  tab.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    tab.classList.add("active");
+    ["ingreso","salida"].forEach(v=>{
+      document.getElementById("view-"+v).style.display = (v === tab.dataset.tab) ? "block" : "none";
+    });
+  });
+});
+
+/* ============================================================
+   SEGMENTED CONTROLS - INGRESO
+   ============================================================ */
+let tipoDoc = "RUT";
+document.querySelectorAll("#segTipoDoc button").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll("#segTipoDoc button").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    tipoDoc = btn.dataset.val;
+    document.getElementById("lblDocIngreso").textContent = tipoDoc === "RUT" ? "RUT" : "N° Pasaporte / Documento";
+    document.getElementById("docIngreso").placeholder = tipoDoc === "RUT" ? "12.345.678-9" : "Número de documento";
+    document.getElementById("docIngreso").value = "";
+    document.getElementById("hintDoc").textContent = "";
+    document.getElementById("foundBadge").innerHTML = "";
+  });
+});
+
+let cargoSel = "Conductor";
+document.querySelectorAll("#segCargo button").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll("#segCargo button").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    cargoSel = btn.dataset.val;
+  });
+});
+
+/* ============================================================
+   INGRESO: formateo, autocompletar, chequeo de bloqueo EN VIVO
+   (no se guarda ni se muestra la lista de bloqueados en esta app;
+   solo se consulta si ESTA persona en particular está bloqueada)
+   ============================================================ */
+const docIngresoInput = document.getElementById("docIngreso");
+
+docIngresoInput.addEventListener("input", ()=>{
+  const pos = docIngresoInput.selectionStart;
+  if(tipoDoc === "RUT"){ docIngresoInput.value = formatRut(docIngresoInput.value); }
+  else{ docIngresoInput.value = docIngresoInput.value.toUpperCase(); if(pos !== null) docIngresoInput.setSelectionRange(pos, pos); }
+});
+
+docIngresoInput.addEventListener("blur", async ()=>{
+  const raw = docIngresoInput.value.trim();
+  if(!raw) return;
+  const key = tipoDoc === "RUT" ? normRut(raw) : raw.toUpperCase().replace(/\s+/g,"");
+  document.getElementById("hintDoc").textContent = "";
+  if(tipoDoc === "RUT" && !rutValido(raw)){
+    document.getElementById("hintDoc").textContent = "⚠ Verifica el RUT (dígito verificador no coincide)";
+  }
+
+  await checkBloqueoYAlertar(key);
+
+  let info = conductoresCache[key];
+  if(!info){
+    const remote = await jsonpRequest("buscarConductor", {rut:key});
+    if(remote && remote.found) info = remote.data;
+  }
+  if(info){
+    document.getElementById("nombreIngreso").value = (info.nombre || "").toUpperCase();
+    document.getElementById("apellidoIngreso").value = (info.apellido || "").toUpperCase();
+    document.getElementById("empresaIngreso").value = (info.empresa || "").toUpperCase();
+    if(info.cargo){
+      cargoSel = info.cargo;
+      document.querySelectorAll("#segCargo button").forEach(b=>{ b.classList.toggle("active", b.dataset.val === info.cargo); });
+    }
+    document.getElementById("foundBadge").innerHTML = '<span class="found-badge">✓ Datos encontrados — verifica antes de continuar</span>';
+  }else{
+    document.getElementById("foundBadge").innerHTML = "";
+  }
+});
+
+async function checkBloqueoYAlertar(key){
+  const resp = await jsonpRequest("verificarBloqueoSimple", {rut:key});
+  if(resp && resp.blocked){
+    mostrarAlertaBloqueo(key);
+    return true;
+  }
+  return false;
+}
+
+function mostrarAlertaBloqueo(rut){
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="block-modal">
+      <div class="icon">⛔</div>
+      <h3>PERSONA BLOQUEADA</h3>
+      <div class="rut">${rut}</div>
+      <p>No autorizar el ingreso.</p>
+      <p>En caso de requerir más información, contactar a su Supervisor o Jefe de Safety &amp; Security.</p>
+      <button id="closeBlockModal">ENTENDIDO</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById("closeBlockModal").onclick = ()=>overlay.remove();
+  postToSheet("registrarIntentoBloqueado", {rut, checkpoint: CHECKPOINT_NAME, timestamp: Date.now()});
+}
+
+/* ============================================================
+   REGISTRAR INGRESO
+   ============================================================ */
+document.getElementById("btnIngreso").addEventListener("click", async ()=>{
+  const rawDoc = docIngresoInput.value.trim();
+  const nombre = document.getElementById("nombreIngreso").value.trim();
+  const apellido = document.getElementById("apellidoIngreso").value.trim();
+  const empresa = document.getElementById("empresaIngreso").value.trim();
+
+  if(!rawDoc || !nombre || !apellido || !empresa){
+    toast("Completa todos los campos obligatorios", "err");
+    return;
+  }
+  if(!scriptUrlConfigurada()){
+    toast("Falta configurar la URL de Apps Script (banner arriba)", "err");
+    return;
+  }
+  const key = tipoDoc === "RUT" ? normRut(rawDoc) : rawDoc.toUpperCase().replace(/\s+/g,"");
+
+  // chequeo final de bloqueo antes de registrar (server-side, no depende de PIN local)
+  const bloqueado = await checkBloqueoYAlertar(key);
+  if(bloqueado) return;
+
+  const registro = {
+    timestamp: Date.now(),
+    checkpoint: CHECKPOINT_NAME,
+    tipoDoc,
+    documento: key,
+    documentoFormato: rawDoc,
+    nombre, apellido, empresa,
+    cargo: cargoSel
+  };
+
+  await postToSheet("registrarIngreso", registro);
+
+  conductoresCache[key] = {nombre, apellido, empresa, cargo: cargoSel};
+  saveJSON(LS_CONDUCTORES, conductoresCache);
+
+  toast(`Ingreso registrado: ${nombre} ${apellido}`, "ok");
+
+  docIngresoInput.value = "";
+  document.getElementById("nombreIngreso").value = "";
+  document.getElementById("apellidoIngreso").value = "";
+  document.getElementById("empresaIngreso").value = "";
+  document.getElementById("hintDoc").textContent = "";
+  document.getElementById("foundBadge").innerHTML = "";
+});
+
+/* ============================================================
+   SALIDA
+   ============================================================ */
+const docSalidaInput = document.getElementById("docSalida");
+let horaIngresoHoyCache = null;
+let tipoDocSalida = "RUT";
+
+document.querySelectorAll("#segTipoDocSalida button").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll("#segTipoDocSalida button").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    tipoDocSalida = btn.dataset.val;
+    document.getElementById("lblDocSalida").textContent = tipoDocSalida === "RUT" ? "RUT" : "N° Pasaporte / Documento";
+    docSalidaInput.placeholder = tipoDocSalida === "RUT" ? "12.345.678-9" : "Número de documento";
+    docSalidaInput.value = "";
+    document.getElementById("salidaInfo").textContent = "";
+    horaIngresoHoyCache = null;
+  });
+});
+
+docSalidaInput.addEventListener("input", ()=>{
+  if(tipoDocSalida === "RUT"){ docSalidaInput.value = formatRut(docSalidaInput.value); }
+  else{ docSalidaInput.value = docSalidaInput.value.toUpperCase(); }
+});
+
+docSalidaInput.addEventListener("blur", async ()=>{
+  const raw = docSalidaInput.value.trim();
+  if(!raw) return;
+  const key = tipoDocSalida === "RUT" ? normRut(raw) : raw.toUpperCase().replace(/\s+/g,"");
+  const info = conductoresCache[key];
+  const infoDiv = document.getElementById("salidaInfo");
+
+  if(!scriptUrlConfigurada()){
+    infoDiv.innerHTML = `<b style="color:var(--danger);">⚠ Falta configurar la URL de Apps Script (banner arriba).</b>`;
+    horaIngresoHoyCache = null;
+    return;
+  }
+
+  infoDiv.textContent = "Buscando datos...";
+  const ing = await jsonpRequest("buscarIngresoHoy", {rut:key});
+  const base = info ? `${info.nombre} ${info.apellido} · ${info.empresa} · ${info.cargo}` : "";
+
+  if(ing === null){
+    infoDiv.innerHTML = `${base} ${base?"·":""} <b style="color:var(--danger);">⚠ No se pudo conectar al servidor.</b>`;
+    horaIngresoHoyCache = null;
+    return;
+  }
+  if(ing.error){
+    infoDiv.innerHTML = `${base} ${base?"·":""} <b style="color:var(--danger);">⚠ Error del servidor: ${ing.error}</b>`;
+    horaIngresoHoyCache = null;
+    return;
+  }
+
+  horaIngresoHoyCache = ing.found ? ing.hora : null;
+  if(horaIngresoHoyCache){
+    infoDiv.innerHTML = `${base} ${base?"·":""} <b style="color:var(--ok);">Ingresó hoy a las ${horaIngresoHoyCache}</b>`;
+  }else{
+    infoDiv.innerHTML = `${base} ${base?"·":""} <b style="color:var(--danger);">Sin ingreso registrado hoy</b>`;
+  }
+});
+
+document.getElementById("btnSalida").addEventListener("click", async ()=>{
+  const rutRaw = docSalidaInput.value.trim();
+  const anden = document.getElementById("andenSalida").value.trim();
+  const patente = document.getElementById("patenteSalida").value.trim().toUpperCase();
+  const pallet = document.getElementById("palletSalida").value;
+  const rutaNum = document.getElementById("rutaSalidaNum").value.trim();
+  const ruta = rutaNum ? "VEH-" + rutaNum : "";
+  const idRuta = document.getElementById("idRutaSalida").value.trim();
+
+  if(!rutRaw || !anden || !patente || !ruta || !idRuta){
+    toast("Completa todos los campos obligatorios", "err");
+    return;
+  }
+  if(!scriptUrlConfigurada()){
+    toast("Falta configurar la URL de Apps Script (banner arriba)", "err");
+    return;
+  }
+  const key = tipoDocSalida === "RUT" ? normRut(rutRaw) : rutRaw.toUpperCase().replace(/\s+/g,"");
+  const horaSalidaAhora = new Date().toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit'});
+  const registro = {
+    timestamp: Date.now(),
+    checkpoint: CHECKPOINT_NAME,
+    documento: key,
+    documentoFormato: rutRaw,
+    anden, patente, pallet, rutaVeh: ruta, idRuta
+  };
+
+  await postToSheet("registrarSalida", registro);
+
+  if(horaIngresoHoyCache){
+    toast(`Salida ${patente} — Ingreso ${horaIngresoHoyCache} · Salida ${horaSalidaAhora}`, "ok");
+  }else{
+    toast(`Salida registrada: ${patente} (sin ingreso registrado hoy)`, "ok");
+  }
+
+  docSalidaInput.value = "";
+  document.getElementById("andenSalida").value = "";
+  document.getElementById("patenteSalida").value = "";
+  document.getElementById("palletSalida").value = "";
+  document.getElementById("rutaSalidaNum").value = "";
+  document.getElementById("idRutaSalida").value = "";
+  document.getElementById("salidaInfo").textContent = "";
+  horaIngresoHoyCache = null;
+});
+</script>
+</body>
+</html>
