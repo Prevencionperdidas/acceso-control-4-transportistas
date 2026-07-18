@@ -533,6 +533,19 @@ function retryPending(){
 setInterval(retryPending, 20000);
 retryPending(); // reintenta también al abrir la app
 
+// Escritura CONFIRMADA: usa JSONP (GET) para saber si realmente se guardó o
+// si el servidor devolvió un error real, en vez de asumir éxito a ciegas
+// como pasa con el POST no-cors (que nunca informa fallas).
+async function postToSheetConfirmed(actionConfirmado, actionOriginal, data){
+  const resp = await jsonpRequest(actionConfirmado, data);
+  if(resp && resp.ok) return {ok:true};
+  if(resp && resp.error) return {ok:false, error: resp.error};
+  // sin respuesta (sin conexión / timeout): se encola para reintentar más tarde
+  pendingQueue.push({action: actionOriginal, data, ts:Date.now()});
+  saveJSON(LS_PENDING, pendingQueue);
+  return {ok:false, queued:true};
+}
+
 let jsonpCounter = 0;
 function jsonpRequest(action, params){
   return new Promise((resolve) => {
@@ -717,7 +730,12 @@ document.getElementById("btnIngreso").addEventListener("click", async ()=>{
     cargo: cargoSel
   };
 
-  await postToSheet("registrarIngreso", registro);
+  const resultado = await postToSheetConfirmed("registrarIngresoConfirmado", "registrarIngreso", registro);
+
+  if(!resultado.ok && resultado.error){
+    toast(`⚠ No se guardó: ${resultado.error}`, "err");
+    return; // no limpiar el formulario para no perder los datos ya escritos
+  }
 
   // actualizar cache local de conductores para autocompletar la próxima vez
   conductoresCache[key] = {nombre, apellido, empresa, cargo: cargoSel};
@@ -726,7 +744,11 @@ document.getElementById("btnIngreso").addEventListener("click", async ()=>{
   movimientosHoy.unshift({tipo:"Ingreso", ...registro});
   saveJSON(LS_HOY, movimientosHoy);
 
-  toast(`Ingreso registrado: ${nombre} ${apellido}`, "ok");
+  if(resultado.queued){
+    toast(`Sin conexión — se guardará automáticamente cuando vuelva la señal`, "ok");
+  }else{
+    toast(`Ingreso registrado: ${nombre} ${apellido}`, "ok");
+  }
 
   // limpiar formulario
   docIngresoInput.value = "";
@@ -826,11 +848,19 @@ document.getElementById("btnSalida").addEventListener("click", async ()=>{
     anden, patente, pallet, rutaVeh: ruta, idRuta
   };
 
-  await postToSheet("registrarSalida", registro);
+  const resultado = await postToSheetConfirmed("registrarSalidaConfirmado", "registrarSalida", registro);
+
+  if(!resultado.ok && resultado.error){
+    toast(`⚠ No se guardó: ${resultado.error}`, "err");
+    return; // no limpiar el formulario para no perder los datos ya escritos
+  }
+
   movimientosHoy.unshift({tipo:"Salida", ...registro});
   saveJSON(LS_HOY, movimientosHoy);
 
-  if(horaIngresoHoyCache){
+  if(resultado.queued){
+    toast(`Sin conexión — se guardará automáticamente cuando vuelva la señal`, "ok");
+  }else if(horaIngresoHoyCache){
     toast(`Salida ${patente} — Ingreso ${horaIngresoHoyCache} · Salida ${horaSalidaAhora}`, "ok");
   }else{
     toast(`Salida registrada: ${patente} (sin ingreso registrado hoy)`, "ok");
