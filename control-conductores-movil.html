@@ -261,7 +261,7 @@ function setOnlineStatus(){
   if(navigator.onLine){ dot.classList.remove("off"); label.textContent = "online"; }
   else{ dot.classList.add("off"); label.textContent = "sin conexión"; }
 }
-window.addEventListener('online', setOnlineStatus);
+window.addEventListener('online', ()=>{ setOnlineStatus(); retryPending(); });
 window.addEventListener('offline', setOnlineStatus);
 setOnlineStatus();
 
@@ -286,6 +286,7 @@ function retryPending(){
   queue.forEach(item => postToSheet(item.action, item.data));
 }
 setInterval(retryPending, 20000);
+retryPending(); // reintenta también al abrir la app
 
 let jsonpCounter = 0;
 function jsonpRequest(action, params){
@@ -333,6 +334,8 @@ function abrirConfiguracion(){
       <label>URL de Apps Script</label>
       <input type="text" id="cfgScriptUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" value="${scriptUrlConfigurada() ? SCRIPT_URL : ""}">
       <button class="btn-primary" id="cfgSaveBtn" style="margin-top:12px;">GUARDAR Y RECARGAR</button>
+      <button class="btn-secondary" id="cfgTestBtn" style="margin-top:8px;">🔍 PROBAR CONEXIÓN</button>
+      <div id="cfgTestResult" style="font-size:12px;margin-top:8px;"></div>
       <button style="background:#555;margin-top:8px;width:100%;padding:12px;border:none;border-radius:8px;color:#fff;font-weight:700;" id="cfgCloseBtn">CERRAR</button>
     </div>`;
   document.body.appendChild(overlay);
@@ -345,6 +348,23 @@ function abrirConfiguracion(){
     localStorage.setItem(LS_SCRIPT_URL, url);
     toast("URL guardada. Recargando...", "ok");
     setTimeout(()=>location.reload(), 800);
+  });
+  document.getElementById("cfgTestBtn").addEventListener("click", async ()=>{
+    const resDiv = document.getElementById("cfgTestResult");
+    resDiv.innerHTML = "Probando conexión...";
+    const resp = await jsonpRequest("ping", {});
+    if(!resp){
+      resDiv.innerHTML = `<span style="color:var(--danger);">⚠ No hubo respuesta. Revisa que la URL guardada sea correcta y termine en /exec, y que el deployment tenga acceso "Cualquier usuario".</span>`;
+      return;
+    }
+    resDiv.innerHTML = `
+      <div style="background:#eaf3ea;padding:8px;border-radius:8px;">
+        ✅ Conectado.<br>
+        Versión backend: <b>${resp.version}</b><br>
+        Hora del servidor: <b>${resp.horaServidor}</b> (${resp.timezone})<br>
+        Filas en "Ingresos": <b>${resp.filasIngresos}</b><br>
+        Filas en "Salidas": <b>${resp.filasSalidas}</b>
+      </div>`;
   });
   document.getElementById("cfgCloseBtn").addEventListener("click", ()=>overlay.remove());
 }
