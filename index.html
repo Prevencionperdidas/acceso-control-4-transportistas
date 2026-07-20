@@ -190,7 +190,10 @@
       <input type="text" id="apellidoIngreso" placeholder="Apellido completo">
 
       <label>Empresa / Transporte</label>
-      <input type="text" id="empresaIngreso" placeholder="Ej: Transportes Sur Ltda.">
+      <select id="empresaIngreso">
+        <option value="" disabled selected>Selecciona una empresa...</option>
+      </select>
+      <input type="text" id="empresaIngresoOtra" placeholder="Escribe el nombre de la empresa" style="display:none;margin-top:8px;">
 
       <label>Cargo</label>
       <div class="seg" id="segCargo">
@@ -436,7 +439,7 @@ function forzarMayusculas(ids){
     });
   });
 }
-forzarMayusculas(["nombreIngreso","apellidoIngreso","empresaIngreso","andenSalida","patenteSalida","rutaSalida","idRutaSalida","filtroRutDash","adminMotivo"]);
+forzarMayusculas(["nombreIngreso","apellidoIngreso","empresaIngresoOtra","andenSalida","patenteSalida","rutaSalida","idRutaSalida","filtroRutDash","adminMotivo"]);
 
 function updateClock(){
   const d = new Date();
@@ -604,6 +607,59 @@ document.querySelectorAll(".tab").forEach(tab=>{
 });
 
 /* ============================================================
+   EMPRESAS / TRANSPORTE — lista desplegable + opción "Otra"
+   ⚠️ EDITA ESTA LISTA con los nombres reales de tus empresas transportistas.
+   El orden en que las escribas acá es el orden en que aparecen en la lista.
+   ============================================================ */
+const EMPRESAS_TRANSPORTE = [
+  "TRANSPORTE INVERSIONES ALDANA CID (JOINT)",
+  "TRANSPORTE CATALINA ESTER MONSALVE (KUYEN)",
+  "TRANSPORTE EMOV",
+  "TRANSPORTE GSK",
+  "TRANSPORTE HERNANDEZ",
+  "TRANSPORTE HERRERA",
+  "TRANSPORTE INVERSIONES MORA OVALLE (SPREAD)",
+  "TRANSPORTE LESLIE",
+  "TRANSPORTE LUNA Y AGUIRRE (LYA)",
+  "TRANSPORTE MAURICIO ESTEBAN CONCHA (MTN)",
+  "TRANSPORTE MONTE ARARAT",
+  "TRANSPORTE MTN",
+  "TRANSPORTE MUÑOZ",
+  "TRANSPORTE MUSSO",
+  "TRANSPORTE PEREZ FERNANDEZ",
+  "TRANSPORTE PUMA",
+  "TRANSPORTE TRANVIP",
+  "TRANSPORTE VALDISHOPPER",
+  "TRANSPORTE YEVEMASK"
+];
+
+function poblarSelectEmpresas(){
+  const sel = document.getElementById("empresaIngreso");
+  EMPRESAS_TRANSPORTE.forEach(emp=>{
+    const opt = document.createElement("option");
+    opt.value = emp; opt.textContent = emp;
+    sel.appendChild(opt);
+  });
+  const optOtra = document.createElement("option");
+  optOtra.value = "OTRA";
+  optOtra.textContent = "Otra empresa (escribir)";
+  sel.appendChild(optOtra);
+}
+poblarSelectEmpresas();
+
+document.getElementById("empresaIngreso").addEventListener("change", ()=>{
+  const sel = document.getElementById("empresaIngreso");
+  const otraInput = document.getElementById("empresaIngresoOtra");
+  if(sel.value === "OTRA"){
+    otraInput.style.display = "block";
+    otraInput.focus();
+  }else{
+    otraInput.style.display = "none";
+    otraInput.value = "";
+  }
+});
+
+/* ============================================================
    SEGMENTED CONTROLS
    ============================================================ */
 let tipoDoc = "RUT";
@@ -668,7 +724,7 @@ docIngresoInput.addEventListener("blur", async ()=>{
   if(info){
     document.getElementById("nombreIngreso").value = (info.nombre || "").toUpperCase();
     document.getElementById("apellidoIngreso").value = (info.apellido || "").toUpperCase();
-    document.getElementById("empresaIngreso").value = (info.empresa || "").toUpperCase();
+    aplicarEmpresaEnFormulario(info.empresa);
     if(info.cargo){
       cargoSel = info.cargo;
       document.querySelectorAll("#segCargo button").forEach(b=>{
@@ -681,6 +737,22 @@ docIngresoInput.addEventListener("blur", async ()=>{
     document.getElementById("foundBadge").innerHTML = "";
   }
 });
+
+function aplicarEmpresaEnFormulario(empresaGuardada){
+  const sel = document.getElementById("empresaIngreso");
+  const otraInput = document.getElementById("empresaIngresoOtra");
+  if(!empresaGuardada){ return; }
+  const match = EMPRESAS_TRANSPORTE.find(e => e.toUpperCase() === empresaGuardada.toUpperCase());
+  if(match){
+    sel.value = match;
+    otraInput.style.display = "none";
+    otraInput.value = "";
+  }else{
+    sel.value = "OTRA";
+    otraInput.style.display = "block";
+    otraInput.value = empresaGuardada.toUpperCase();
+  }
+}
 
 function checkBloqueoYAlertar(key){
   if(bloqueadosCache[key]){
@@ -713,7 +785,10 @@ document.getElementById("btnIngreso").addEventListener("click", async ()=>{
   const rawDoc = docIngresoInput.value.trim();
   const nombre = document.getElementById("nombreIngreso").value.trim();
   const apellido = document.getElementById("apellidoIngreso").value.trim();
-  const empresa = document.getElementById("empresaIngreso").value.trim();
+  const empresaSelVal = document.getElementById("empresaIngreso").value;
+  const empresa = empresaSelVal === "OTRA"
+    ? document.getElementById("empresaIngresoOtra").value.trim()
+    : empresaSelVal;
 
   if(!rawDoc || !nombre || !apellido || !empresa){
     toast("Completa todos los campos obligatorios", "err");
@@ -765,6 +840,8 @@ document.getElementById("btnIngreso").addEventListener("click", async ()=>{
   document.getElementById("nombreIngreso").value = "";
   document.getElementById("apellidoIngreso").value = "";
   document.getElementById("empresaIngreso").value = "";
+  document.getElementById("empresaIngresoOtra").value = "";
+  document.getElementById("empresaIngresoOtra").style.display = "none";
   document.getElementById("hintDoc").textContent = "";
   document.getElementById("foundBadge").innerHTML = "";
 });
