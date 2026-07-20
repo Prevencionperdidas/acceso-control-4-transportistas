@@ -163,28 +163,34 @@
       <input type="text" id="docSalida" placeholder="12.345.678-9" autocomplete="off">
       <div id="salidaInfo" class="hint"></div>
 
-      <label>Andén de carga</label>
-      <input type="text" id="andenSalida" placeholder="Ej: Andén 7">
-
-      <div class="row2">
-        <div>
-          <label>Patente</label>
-          <input type="text" id="patenteSalida" placeholder="AB-CD-12">
-        </div>
-        <div>
-          <label>N° pallets</label>
-          <input type="number" id="palletSalida" placeholder="0" min="0">
-        </div>
+      <div id="salidaSupervisorNote" style="display:none;background:#eaf3ea;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:12.5px;color:var(--ok);font-weight:600;">
+        ✓ Supervisor detectado: solo se registra el RUT y la hora de salida, sin datos de carga.
       </div>
 
-      <label>N° Ruta VEH</label>
-      <div class="veh-prefix-group">
-        <span class="veh-prefix">VEH-</span>
-        <input type="text" id="rutaSalidaNum" placeholder="045">
-      </div>
+      <div id="salidaCamposExtra">
+        <label>Andén de carga</label>
+        <input type="text" id="andenSalida" placeholder="Ej: Andén 7">
 
-      <label>ID de Ruta</label>
-      <input type="text" id="idRutaSalida" placeholder="Ej: 14493441">
+        <div class="row2">
+          <div>
+            <label>Patente</label>
+            <input type="text" id="patenteSalida" placeholder="AB-CD-12">
+          </div>
+          <div>
+            <label>N° pallets</label>
+            <input type="number" id="palletSalida" placeholder="0" min="0">
+          </div>
+        </div>
+
+        <label>N° Ruta VEH</label>
+        <div class="veh-prefix-group">
+          <span class="veh-prefix">VEH-</span>
+          <input type="text" id="rutaSalidaNum" placeholder="045">
+        </div>
+
+        <label>ID de Ruta</label>
+        <input type="text" id="idRutaSalida" placeholder="Ej: 14493441">
+      </div>
 
       <button class="btn-primary" id="btnSalida">REGISTRAR SALIDA</button>
     </div>
@@ -594,7 +600,14 @@ document.getElementById("btnIngreso").addEventListener("click", async ()=>{
    ============================================================ */
 const docSalidaInput = document.getElementById("docSalida");
 let horaIngresoHoyCache = null;
+let cargoDetectadoSalida = null;
 let tipoDocSalida = "RUT";
+
+function actualizarVisibilidadCamposSalida(){
+  const esSupervisor = cargoDetectadoSalida === "Supervisor";
+  document.getElementById("salidaCamposExtra").style.display = esSupervisor ? "none" : "block";
+  document.getElementById("salidaSupervisorNote").style.display = esSupervisor ? "block" : "none";
+}
 
 document.querySelectorAll("#segTipoDocSalida button").forEach(btn=>{
   btn.addEventListener("click", ()=>{
@@ -606,6 +619,8 @@ document.querySelectorAll("#segTipoDocSalida button").forEach(btn=>{
     docSalidaInput.value = "";
     document.getElementById("salidaInfo").textContent = "";
     horaIngresoHoyCache = null;
+    cargoDetectadoSalida = null;
+    actualizarVisibilidadCamposSalida();
   });
 });
 
@@ -618,7 +633,6 @@ docSalidaInput.addEventListener("blur", async ()=>{
   const raw = docSalidaInput.value.trim();
   if(!raw) return;
   const key = tipoDocSalida === "RUT" ? normRut(raw) : raw.toUpperCase().replace(/\s+/g,"");
-  const info = conductoresCache[key];
   const infoDiv = document.getElementById("salidaInfo");
 
   if(!scriptUrlConfigurada()){
@@ -628,21 +642,30 @@ docSalidaInput.addEventListener("blur", async ()=>{
   }
 
   infoDiv.textContent = "Buscando datos...";
-  const ing = await jsonpRequest("buscarIngresoHoy", {rut:key});
+  // UNA sola llamada: conductor (incluye Cargo) + hora de ingreso de hoy
+  const resp = await jsonpRequest("consultarParaSalida", {rut:key});
+
+  if(resp === null){
+    infoDiv.innerHTML = `<b style="color:var(--danger);">⚠ No se pudo conectar al servidor.</b>`;
+    horaIngresoHoyCache = null;
+    cargoDetectadoSalida = null;
+    actualizarVisibilidadCamposSalida();
+    return;
+  }
+  if(resp.error){
+    infoDiv.innerHTML = `<b style="color:var(--danger);">⚠ Error del servidor: ${resp.error}</b>`;
+    horaIngresoHoyCache = null;
+    cargoDetectadoSalida = null;
+    actualizarVisibilidadCamposSalida();
+    return;
+  }
+
+  const info = resp.conductor || conductoresCache[key];
+  cargoDetectadoSalida = info ? info.cargo : null;
+  actualizarVisibilidadCamposSalida();
+
   const base = info ? `${info.nombre} ${info.apellido} · ${info.empresa} · ${info.cargo}` : "";
-
-  if(ing === null){
-    infoDiv.innerHTML = `${base} ${base?"·":""} <b style="color:var(--danger);">⚠ No se pudo conectar al servidor.</b>`;
-    horaIngresoHoyCache = null;
-    return;
-  }
-  if(ing.error){
-    infoDiv.innerHTML = `${base} ${base?"·":""} <b style="color:var(--danger);">⚠ Error del servidor: ${ing.error}</b>`;
-    horaIngresoHoyCache = null;
-    return;
-  }
-
-  horaIngresoHoyCache = ing.found ? ing.hora : null;
+  horaIngresoHoyCache = resp.horaIngresoHoy || null;
   if(horaIngresoHoyCache){
     infoDiv.innerHTML = `${base} ${base?"·":""} <b style="color:var(--ok);">Ingresó hoy a las ${horaIngresoHoyCache}</b>`;
   }else{
@@ -652,14 +675,20 @@ docSalidaInput.addEventListener("blur", async ()=>{
 
 document.getElementById("btnSalida").addEventListener("click", async ()=>{
   const rutRaw = docSalidaInput.value.trim();
-  const anden = document.getElementById("andenSalida").value.trim();
-  const patente = document.getElementById("patenteSalida").value.trim().toUpperCase();
-  const pallet = document.getElementById("palletSalida").value;
-  const rutaNum = document.getElementById("rutaSalidaNum").value.trim();
-  const ruta = rutaNum ? "VEH-" + rutaNum : "";
-  const idRuta = document.getElementById("idRutaSalida").value.trim();
+  const esSupervisor = cargoDetectadoSalida === "Supervisor";
 
-  if(!rutRaw || !anden || !patente || !ruta || !idRuta){
+  const anden = esSupervisor ? "" : document.getElementById("andenSalida").value.trim();
+  const patente = esSupervisor ? "" : document.getElementById("patenteSalida").value.trim().toUpperCase();
+  const pallet = esSupervisor ? "" : document.getElementById("palletSalida").value;
+  const rutaNum = esSupervisor ? "" : document.getElementById("rutaSalidaNum").value.trim();
+  const ruta = rutaNum ? "VEH-" + rutaNum : "";
+  const idRuta = esSupervisor ? "" : document.getElementById("idRutaSalida").value.trim();
+
+  if(!rutRaw){
+    toast("Ingresa el RUT o documento", "err");
+    return;
+  }
+  if(!esSupervisor && (!anden || !patente || !ruta || !idRuta)){
     toast("Completa todos los campos obligatorios", "err");
     return;
   }
@@ -686,6 +715,8 @@ document.getElementById("btnSalida").addEventListener("click", async ()=>{
 
   if(resultado.queued){
     toast(`Sin conexión — se guardará automáticamente cuando vuelva la señal`, "ok");
+  }else if(esSupervisor){
+    toast(`Salida de Supervisor registrada · ${horaSalidaAhora}`, "ok");
   }else if(horaIngresoHoyCache){
     toast(`Salida ${patente} — Ingreso ${horaIngresoHoyCache} · Salida ${horaSalidaAhora}`, "ok");
   }else{
@@ -698,6 +729,8 @@ document.getElementById("btnSalida").addEventListener("click", async ()=>{
   document.getElementById("palletSalida").value = "";
   document.getElementById("rutaSalidaNum").value = "";
   document.getElementById("idRutaSalida").value = "";
+  cargoDetectadoSalida = null;
+  actualizarVisibilidadCamposSalida();
   document.getElementById("salidaInfo").textContent = "";
   horaIngresoHoyCache = null;
 });
