@@ -369,7 +369,7 @@ const LS_SCRIPT_URL = "c4_script_url";
 const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbXXXXXXXXXXXXXXXXXXXXXXXXXXXX/exec";
 let SCRIPT_URL = localStorage.getItem(LS_SCRIPT_URL) || DEFAULT_SCRIPT_URL;
 function scriptUrlConfigurada(){ return SCRIPT_URL && SCRIPT_URL.indexOf("AKfycbXXXX") === -1; }
-const ADMIN_PIN = "282726"; // PIN de administración (bloqueos). Cámbialo aquí.
+const ADMIN_PIN = "358097"; // PIN de administración (bloqueos). Cámbialo aquí.
 const CHECKPOINT_NAME = "Control 4";
 
 /* ============================================================
@@ -628,6 +628,7 @@ const EMPRESAS_TRANSPORTE = [
   "TRANSPORTE MUSSO",
   "TRANSPORTE PEREZ FERNANDEZ",
   "TRANSPORTE PUMA",
+  "TRANSPORTE SUPPLY FOODS",
   "TRANSPORTE TRANVIP",
   "TRANSPORTE VALDISHOPPER",
   "TRANSPORTE YEVEMASK"
@@ -1134,10 +1135,38 @@ async function cargarDashboard(){
    BOTÓN DE BLOQUEO (protegido con PIN, disponible desde el Dashboard)
    ============================================================ */
 function verificarPinYAbrirAdmin(){
-  const pin = prompt("Esta acción está bloqueada. Ingresa el PIN de administración:");
-  if(pin === null) return;
-  if(pin !== ADMIN_PIN){ toast("PIN incorrecto — acción no autorizada", "err"); return; }
-  abrirPanelAdmin();
+  pedirPinPrivado((pin)=>{
+    if(pin !== ADMIN_PIN){ toast("PIN incorrecto — acción no autorizada", "err"); return; }
+    abrirPanelAdmin();
+  });
+}
+
+// Muestra un modal con campo tipo contraseña (oculto mientras se escribe),
+// en vez de prompt() que muestra el PIN en texto plano en pantalla.
+function pedirPinPrivado(onSuccess){
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="block-modal info" style="text-align:center;">
+      <h3 style="color:var(--ikea-blue);">🔒 Acceso protegido</h3>
+      <p style="font-size:13px;color:#555;">Esta acción requiere el PIN de administración.</p>
+      <input type="password" id="pinPrivadoInput" inputmode="numeric" autocomplete="off"
+        placeholder="••••••" style="text-align:center;letter-spacing:4px;font-size:20px;">
+      <button class="btn-primary" id="pinPrivadoOkBtn" style="margin-top:12px;">CONFIRMAR</button>
+      <button style="background:#555;margin-top:8px;width:100%;padding:12px;border:none;border-radius:8px;color:#fff;font-weight:700;" id="pinPrivadoCancelBtn">CANCELAR</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  const input = document.getElementById("pinPrivadoInput");
+  input.focus();
+
+  function confirmar(){
+    const pin = input.value;
+    overlay.remove();
+    onSuccess(pin);
+  }
+  document.getElementById("pinPrivadoOkBtn").addEventListener("click", confirmar);
+  input.addEventListener("keydown", (e)=>{ if(e.key === "Enter") confirmar(); });
+  document.getElementById("pinPrivadoCancelBtn").addEventListener("click", ()=>overlay.remove());
 }
 
 document.getElementById("btnBloquearDash").addEventListener("click", verificarPinYAbrirAdmin);
