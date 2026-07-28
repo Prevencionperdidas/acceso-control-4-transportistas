@@ -411,10 +411,38 @@ function abrirConfiguracion(){
 }
 const CONFIG_PIN = "358097";
 function verificarPinYAbrirConfiguracion(){
-  const pin = prompt("Esta acción está protegida. Ingresa la clave de configuración:");
-  if(pin === null) return;
-  if(pin !== CONFIG_PIN){ toast("Clave incorrecta", "err"); return; }
-  abrirConfiguracion();
+  pedirPinPrivado((pin)=>{
+    if(pin !== CONFIG_PIN){ toast("Clave incorrecta", "err"); return; }
+    abrirConfiguracion();
+  });
+}
+
+// Muestra un modal con campo tipo contraseña (oculto mientras se escribe),
+// en vez de prompt() que muestra la clave en texto plano en pantalla.
+function pedirPinPrivado(onSuccess){
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="block-modal info" style="text-align:center;">
+      <h3 style="color:var(--ikea-blue);">🔒 Acción protegida</h3>
+      <p style="font-size:13px;color:#555;">Esta acción requiere la clave de configuración.</p>
+      <input type="password" id="pinPrivadoInput" inputmode="numeric" autocomplete="off"
+        placeholder="••••••" style="text-align:center;letter-spacing:4px;font-size:20px;">
+      <button class="btn-primary" id="pinPrivadoOkBtn" style="margin-top:12px;">CONFIRMAR</button>
+      <button style="background:#555;margin-top:8px;width:100%;padding:12px;border:none;border-radius:8px;color:#fff;font-weight:700;" id="pinPrivadoCancelBtn">CANCELAR</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  const input = document.getElementById("pinPrivadoInput");
+  input.focus();
+
+  function confirmar(){
+    const pin = input.value;
+    overlay.remove();
+    onSuccess(pin);
+  }
+  document.getElementById("pinPrivadoOkBtn").addEventListener("click", confirmar);
+  input.addEventListener("keydown", (e)=>{ if(e.key === "Enter") confirmar(); });
+  document.getElementById("pinPrivadoCancelBtn").addEventListener("click", ()=>overlay.remove());
 }
 document.getElementById("configBannerBtn").addEventListener("click", verificarPinYAbrirConfiguracion);
 
@@ -468,6 +496,7 @@ const EMPRESAS_TRANSPORTE = [
   "TRANSPORTE MUSSO",
   "TRANSPORTE PEREZ FERNANDEZ",
   "TRANSPORTE PUMA",
+  "TRANSPORTE SUPPLY FOODS",
   "TRANSPORTE TRANVIP",
   "TRANSPORTE VALDISHOPPER",
   "TRANSPORTE YEVEMASK"
@@ -587,22 +616,27 @@ function aplicarEmpresaEnFormulario(empresaGuardada){
 async function checkBloqueoYAlertar(key){
   const resp = await jsonpRequest("verificarBloqueoSimple", {rut:key});
   if(resp && resp.blocked){
-    mostrarAlertaBloqueo(key);
+    mostrarAlertaBloqueo(key, resp.motivo);
     return true;
   }
   return false;
 }
 
-function mostrarAlertaBloqueo(rut){
+function mostrarAlertaBloqueo(rut, motivo){
   const overlay = document.createElement("div");
   overlay.className = "overlay";
+  // El backend solo entrega "motivo" cuando el bloqueo es AUTOMÁTICO (por no
+  // registrar salida). Los bloqueos manuales siguen sin mostrar motivo aquí.
+  const bloqueMotivoHtml = motivo
+    ? `<p><b>Motivo:</b> ${motivo.replace(/^AUTOMÁTICO:\s*/i,"")}</p>`
+    : `<p>En caso de requerir más información, contactar a su Supervisor o Jefe de Safety &amp; Security.</p>`;
   overlay.innerHTML = `
     <div class="block-modal">
       <div class="icon">⛔</div>
       <h3>PERSONA BLOQUEADA</h3>
       <div class="rut">${rut}</div>
       <p>No autorizar el ingreso.</p>
-      <p>En caso de requerir más información, contactar a su Supervisor o Jefe de Safety &amp; Security.</p>
+      ${bloqueMotivoHtml}
       <button id="closeBlockModal">ENTENDIDO</button>
     </div>`;
   document.body.appendChild(overlay);
