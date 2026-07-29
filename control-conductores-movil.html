@@ -320,21 +320,31 @@ retryPending(); // reintenta también al abrir la app
 
 // Escritura CONFIRMADA: usa JSONP (GET) para saber si realmente se guardó o
 // si el servidor devolvió un error real, en vez de asumir éxito a ciegas.
+// Usa un timeout más largo que las consultas normales porque escribir en la
+// Sheet puede tardar más que una lectura.
 async function postToSheetConfirmed(actionConfirmado, actionOriginal, data){
-  const resp = await jsonpRequest(actionConfirmado, data);
+  const resp = await jsonpRequest(actionConfirmado, data, 20000);
   if(resp && resp.ok) return {ok:true};
   if(resp && resp.error) return {ok:false, error: resp.error};
+  // sin respuesta (timeout real): se encola, pero el idRegistro único evita
+  // que este reintento cree una fila duplicada si el original sí se guardó.
   pendingQueue.push({action: actionOriginal, data, ts:Date.now()});
   saveJSON(LS_PENDING, pendingQueue);
   return {ok:false, queued:true};
 }
 
+// Genera un identificador único por intento de registro, para que reintentos
+// automáticos nunca puedan crear una fila duplicada en la Sheet.
+function generarIdRegistro(){
+  return "r" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+}
+
 let jsonpCounter = 0;
-function jsonpRequest(action, params){
+function jsonpRequest(action, params, timeoutMs){
   return new Promise((resolve) => {
     jsonpCounter++;
     const cbName = "c4mcb_" + jsonpCounter;
-    const timeout = setTimeout(()=>{ cleanup(); resolve(null); }, 6000);
+    const timeout = setTimeout(()=>{ cleanup(); resolve(null); }, timeoutMs || 12000);
     window[cbName] = function(data){ clearTimeout(timeout); cleanup(); resolve(data); };
     function cleanup(){ delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
     const qs = new URLSearchParams({action, callback:cbName, ...params});
@@ -648,6 +658,8 @@ function mostrarAlertaBloqueo(rut, motivo){
    REGISTRAR INGRESO
    ============================================================ */
 document.getElementById("btnIngreso").addEventListener("click", async ()=>{
+  const btn = document.getElementById("btnIngreso");
+  if(btn.disabled) return; // evita doble clic / doble envío
   const rawDoc = docIngresoInput.value.trim();
   const nombre = document.getElementById("nombreIngreso").value.trim();
   const apellido = document.getElementById("apellidoIngreso").value.trim();
@@ -673,12 +685,20 @@ document.getElementById("btnIngreso").addEventListener("click", async ()=>{
     documento: key,
     documentoFormato: rawDoc,
     nombre, apellido, empresa,
-    cargo: cargoSel
+    cargo: cargoSel,
+    idRegistro: generarIdRegistro()
   };
+
+  btn.disabled = true;
+  const textoOriginalBtn = btn.textContent;
+  btn.textContent = "GUARDANDO...";
 
   // El bloqueo se verifica dentro del propio guardado en el servidor (sin
   // llamada extra previa), así el registro es más rápido para el operador.
   const resultado = await postToSheetConfirmed("registrarIngresoConfirmado", "registrarIngreso", registro);
+
+  btn.disabled = false;
+  btn.textContent = textoOriginalBtn;
 
   if(!resultado.ok && resultado.error === "BLOQUEADO"){
     mostrarAlertaBloqueo(key);
@@ -787,6 +807,8 @@ docSalidaInput.addEventListener("blur", async ()=>{
 });
 
 document.getElementById("btnSalida").addEventListener("click", async ()=>{
+  const btn = document.getElementById("btnSalida");
+  if(btn.disabled) return;
   const rutRaw = docSalidaInput.value.trim();
   const esSupervisor = cargoDetectadoSalida === "Supervisor";
 
@@ -816,10 +838,18 @@ document.getElementById("btnSalida").addEventListener("click", async ()=>{
     checkpoint: CHECKPOINT_NAME,
     documento: key,
     documentoFormato: rutRaw,
-    anden, patente, pallet, rutaVeh: ruta, idRuta
+    anden, patente, pallet, rutaVeh: ruta, idRuta,
+    idRegistro: generarIdRegistro()
   };
 
+  btn.disabled = true;
+  const textoOriginalBtn = btn.textContent;
+  btn.textContent = "GUARDANDO...";
+
   const resultado = await postToSheetConfirmed("registrarSalidaConfirmado", "registrarSalida", registro);
+
+  btn.disabled = false;
+  btn.textContent = textoOriginalBtn;
 
   if(!resultado.ok && resultado.error){
     toast(`⚠ No se guardó: ${resultado.error}`, "err");
