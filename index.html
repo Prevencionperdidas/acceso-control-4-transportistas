@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -545,22 +545,33 @@ retryPending(); // reintenta también al abrir la app
 // Escritura CONFIRMADA: usa JSONP (GET) para saber si realmente se guardó o
 // si el servidor devolvió un error real, en vez de asumir éxito a ciegas
 // como pasa con el POST no-cors (que nunca informa fallas).
+// Usa un timeout más largo que las consultas normales porque escribir en la
+// Sheet (appendRow + actualizar Conductores) puede tardar más que una lectura.
 async function postToSheetConfirmed(actionConfirmado, actionOriginal, data){
-  const resp = await jsonpRequest(actionConfirmado, data);
+  const resp = await jsonpRequest(actionConfirmado, data, 20000);
   if(resp && resp.ok) return {ok:true};
   if(resp && resp.error) return {ok:false, error: resp.error};
-  // sin respuesta (sin conexión / timeout): se encola para reintentar más tarde
+  // sin respuesta (sin conexión / timeout real): se encola para reintentar más
+  // tarde. Como el registro lleva un idRegistro único, aunque el intento
+  // original SÍ se haya guardado del lado del servidor, el reintento no
+  // generará una fila duplicada (el backend lo detecta y lo ignora).
   pendingQueue.push({action: actionOriginal, data, ts:Date.now()});
   saveJSON(LS_PENDING, pendingQueue);
   return {ok:false, queued:true};
 }
 
+// Genera un identificador único por intento de registro, para que reintentos
+// automáticos nunca puedan crear una fila duplicada en la Sheet.
+function generarIdRegistro(){
+  return "r" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+}
+
 let jsonpCounter = 0;
-function jsonpRequest(action, params){
+function jsonpRequest(action, params, timeoutMs){
   return new Promise((resolve) => {
     jsonpCounter++;
     const cbName = "c4cb_" + jsonpCounter;
-    const timeout = setTimeout(()=>{ cleanup(); resolve(null); }, 6000);
+    const timeout = setTimeout(()=>{ cleanup(); resolve(null); }, timeoutMs || 12000);
     window[cbName] = function(data){
       clearTimeout(timeout);
       cleanup();
@@ -783,6 +794,8 @@ function mostrarAlertaBloqueo(rut, motivo){
    REGISTRAR INGRESO
    ============================================================ */
 document.getElementById("btnIngreso").addEventListener("click", async ()=>{
+  const btn = document.getElementById("btnIngreso");
+  if(btn.disabled) return; // evita doble clic / doble envío mientras ya está procesando
   const rawDoc = docIngresoInput.value.trim();
   const nombre = document.getElementById("nombreIngreso").value.trim();
   const apellido = document.getElementById("apellidoIngreso").value.trim();
@@ -809,10 +822,18 @@ document.getElementById("btnIngreso").addEventListener("click", async ()=>{
     documento: key,
     documentoFormato: rawDoc,
     nombre, apellido, empresa,
-    cargo: cargoSel
+    cargo: cargoSel,
+    idRegistro: generarIdRegistro()
   };
 
+  btn.disabled = true;
+  const textoOriginalBtn = btn.textContent;
+  btn.textContent = "GUARDANDO...";
+
   const resultado = await postToSheetConfirmed("registrarIngresoConfirmado", "registrarIngreso", registro);
+
+  btn.disabled = false;
+  btn.textContent = textoOriginalBtn;
 
   if(!resultado.ok && resultado.error === "BLOQUEADO"){
     mostrarAlertaBloqueo(key, bloqueadosCache[key] || "Ver detalle en panel de administración");
@@ -932,6 +953,8 @@ docSalidaInput.addEventListener("blur", async ()=>{
 });
 
 document.getElementById("btnSalida").addEventListener("click", async ()=>{
+  const btn = document.getElementById("btnSalida");
+  if(btn.disabled) return;
   const rutRaw = docSalidaInput.value.trim();
   const esSupervisor = cargoDetectadoSalida === "Supervisor";
 
@@ -956,10 +979,18 @@ document.getElementById("btnSalida").addEventListener("click", async ()=>{
     checkpoint: CHECKPOINT_NAME,
     documento: key,
     documentoFormato: rutRaw,
-    anden, patente, pallet, rutaVeh: ruta, idRuta
+    anden, patente, pallet, rutaVeh: ruta, idRuta,
+    idRegistro: generarIdRegistro()
   };
 
+  btn.disabled = true;
+  const textoOriginalBtn = btn.textContent;
+  btn.textContent = "GUARDANDO...";
+
   const resultado = await postToSheetConfirmed("registrarSalidaConfirmado", "registrarSalida", registro);
+
+  btn.disabled = false;
+  btn.textContent = textoOriginalBtn;
 
   if(!resultado.ok && resultado.error){
     toast(`⚠ No se guardó: ${resultado.error}`, "err");
