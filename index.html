@@ -1,4 +1,4 @@
-<!DOCTYPE html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -278,6 +278,7 @@
       </div>
 
       <button class="btn-primary" id="btnActualizarDash">ACTUALIZAR DASHBOARD</button>
+      <button class="btn-secondary" id="btnExportarDash" style="margin-top:8px;">📥 EXPORTAR A GOOGLE SHEET (requiere PIN)</button>
       <button class="btn-secondary" id="btnBloquearDash" style="border-color:var(--danger);color:var(--danger);margin-top:8px;">🔒 BLOQUEAR RUT (requiere PIN)</button>
     </div>
 
@@ -1067,6 +1068,54 @@ const DASH_PAGE_SIZE = 15;
 document.getElementById("btnActualizarDash").addEventListener("click", ()=>{ dashPage = 1; cargarDashboard(); });
 document.getElementById("pagerPrev").addEventListener("click", ()=>{ if(dashPage>1){ dashPage--; cargarDashboard(); } });
 document.getElementById("pagerNext").addEventListener("click", ()=>{ if(dashPage<dashTotalPages){ dashPage++; cargarDashboard(); } });
+
+function mostrarLinkExportado(url, nombre){
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="block-modal info" style="text-align:center;">
+      <h3 style="color:var(--ikea-blue);">📥 Archivo generado</h3>
+      <p style="font-size:13px;color:#555;">Se creó un Google Sheet nuevo con los datos filtrados:</p>
+      <p style="font-weight:700;font-size:13px;">${nombre}</p>
+      <a href="${url}" target="_blank" rel="noopener" class="btn-primary" style="display:block;text-decoration:none;box-sizing:border-box;">ABRIR ARCHIVO</a>
+      <button style="background:#555;margin-top:8px;width:100%;padding:12px;border:none;border-radius:8px;color:#fff;font-weight:700;" id="linkExportadoCloseBtn">CERRAR</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById("linkExportadoCloseBtn").addEventListener("click", ()=>overlay.remove());
+}
+
+document.getElementById("btnExportarDash").addEventListener("click", ()=>{
+  pedirPinPrivado(async (pin)=>{
+    if(pin !== ADMIN_PIN){ toast("PIN incorrecto — acción no autorizada", "err"); return; }
+
+    const periodo = document.getElementById("selPeriodo").value;
+    const rutFiltro = document.getElementById("filtroRutDash").value.trim();
+    const cargos = Array.from(document.querySelectorAll(".chkCargoDash:checked")).map(c=>c.value).join(",");
+
+    const btn = document.getElementById("btnExportarDash");
+    btn.disabled = true;
+    const textoOriginal = btn.textContent;
+    btn.textContent = "GENERANDO ARCHIVO...";
+
+    // Crear un Google Sheet nuevo puede tardar unos segundos: timeout más largo.
+    const resp = await jsonpRequest("exportarDashboardASheet", { periodo, rut: rutFiltro, cargos, pin }, 30000);
+
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+
+    if(!resp){
+      toast("⚠ No se pudo generar el archivo (sin respuesta del servidor)", "err");
+      return;
+    }
+    if(resp.error){
+      toast(`⚠ ${resp.error.replace(/^Error:\s*/,"")}`, "err");
+      return;
+    }
+
+    toast(`Archivo generado: ${resp.filas} fila(s)`, "ok");
+    mostrarLinkExportado(resp.url, resp.nombre);
+  });
+});
 
 function renderBarChart(containerId, data, color){
   const el = document.getElementById(containerId);
