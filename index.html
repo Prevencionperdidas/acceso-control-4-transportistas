@@ -134,6 +134,10 @@
   .bar-chart{display:flex;align-items:flex-end;gap:8px;height:150px;padding-top:22px;}
   .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;}
   .bar{width:70%;min-height:2px;border-radius:5px 5px 0 0;position:relative;}
+  .bar-chart-scroll{overflow-x:auto;padding-bottom:4px;}
+  .bar-chart-fixed{gap:5px;min-width:max-content;}
+  .bar-chart-fixed .bar-col{flex:0 0 38px;width:38px;}
+  .bar-chart-fixed .bar-label{font-size:9px;white-space:nowrap;transform:rotate(-40deg);transform-origin:top left;margin-top:4px;}
   .bar .val{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:10.5px;font-weight:700;color:var(--ikea-blue);white-space:nowrap;}
   .bar-label{font-size:10px;color:#666;margin-top:5px;text-align:center;word-break:break-word;}
   .veh-row{display:flex;justify-content:space-between;padding:7px 10px;background:#eef3fa;border-radius:8px;margin-bottom:6px;}
@@ -298,6 +302,14 @@
     <div class="card">
       <h2>Ingreso de transportistas (por día)</h2>
       <div id="chartPorDia" class="bar-chart">Sin datos aún.</div>
+    </div>
+
+    <div class="card">
+      <h2>Ingreso de transportistas por bloque horario (30 min)</h2>
+      <div class="bar-chart-scroll">
+        <div id="chartPorBloque" class="bar-chart bar-chart-fixed">Sin datos aún.</div>
+      </div>
+      <p class="hint" style="margin-top:6px;">Suma los ingresos de todo el período filtrado, agrupados por la franja horaria del día (independiente de qué día exacto fue).</p>
     </div>
 
     <div class="card">
@@ -1084,38 +1096,51 @@ function mostrarLinkExportado(url, nombre){
   document.getElementById("linkExportadoCloseBtn").addEventListener("click", ()=>overlay.remove());
 }
 
+// Una vez que se valida el PIN de exportación en esta pestaña, se recuerda
+// para el resto de la sesión (hasta que se recargue o cierre la página) —
+// así no hay que volver a escribirlo cada vez que se exporta un archivo.
+let exportarPinValidadoEnSesion = false;
+
 document.getElementById("btnExportarDash").addEventListener("click", ()=>{
-  pedirPinPrivado(async (pin)=>{
+  if(exportarPinValidadoEnSesion){
+    ejecutarExportacion(ADMIN_PIN);
+    return;
+  }
+  pedirPinPrivado((pin)=>{
     if(pin !== ADMIN_PIN){ toast("PIN incorrecto — acción no autorizada", "err"); return; }
-
-    const periodo = document.getElementById("selPeriodo").value;
-    const rutFiltro = document.getElementById("filtroRutDash").value.trim();
-    const cargos = Array.from(document.querySelectorAll(".chkCargoDash:checked")).map(c=>c.value).join(",");
-
-    const btn = document.getElementById("btnExportarDash");
-    btn.disabled = true;
-    const textoOriginal = btn.textContent;
-    btn.textContent = "GENERANDO ARCHIVO...";
-
-    // Crear un Google Sheet nuevo puede tardar unos segundos: timeout más largo.
-    const resp = await jsonpRequest("exportarDashboardASheet", { periodo, rut: rutFiltro, cargos, pin }, 30000);
-
-    btn.disabled = false;
-    btn.textContent = textoOriginal;
-
-    if(!resp){
-      toast("⚠ No se pudo generar el archivo (sin respuesta del servidor)", "err");
-      return;
-    }
-    if(resp.error){
-      toast(`⚠ ${resp.error.replace(/^Error:\s*/,"")}`, "err");
-      return;
-    }
-
-    toast(`Archivo generado: ${resp.filas} fila(s)`, "ok");
-    mostrarLinkExportado(resp.url, resp.nombre);
+    exportarPinValidadoEnSesion = true;
+    ejecutarExportacion(pin);
   });
 });
+
+async function ejecutarExportacion(pin){
+  const periodo = document.getElementById("selPeriodo").value;
+  const rutFiltro = document.getElementById("filtroRutDash").value.trim();
+  const cargos = Array.from(document.querySelectorAll(".chkCargoDash:checked")).map(c=>c.value).join(",");
+
+  const btn = document.getElementById("btnExportarDash");
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  btn.textContent = "GENERANDO ARCHIVO...";
+
+  // Crear un Google Sheet nuevo puede tardar unos segundos: timeout más largo.
+  const resp = await jsonpRequest("exportarDashboardASheet", { periodo, rut: rutFiltro, cargos, pin }, 30000);
+
+  btn.disabled = false;
+  btn.textContent = textoOriginal;
+
+  if(!resp){
+    toast("⚠ No se pudo generar el archivo (sin respuesta del servidor)", "err");
+    return;
+  }
+  if(resp.error){
+    toast(`⚠ ${resp.error.replace(/^Error:\s*/,"")}`, "err");
+    return;
+  }
+
+  toast(`Archivo generado: ${resp.filas} fila(s)`, "ok");
+  mostrarLinkExportado(resp.url, resp.nombre);
+}
 
 function renderBarChart(containerId, data, color){
   const el = document.getElementById(containerId);
@@ -1159,6 +1184,7 @@ async function cargarDashboard(){
   document.getElementById("kpiSupervisor").textContent = (resp.cargoCounts && resp.cargoCounts.Supervisor) || 0;
 
   renderBarChart("chartPorDia", resp.porDia || [], "#0058A3");
+  renderBarChart("chartPorBloque", resp.porBloqueHorario || [], "#0058A3");
   renderBarChart("chartEntradaSalida", [
     {label:"Entrada", count: resp.totalIngresos || 0},
     {label:"Salida", count: resp.totalSalidas || 0}
