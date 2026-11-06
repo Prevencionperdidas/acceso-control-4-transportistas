@@ -167,6 +167,11 @@
       <input type="text" id="docSalida" placeholder="12.345.678-9" autocomplete="off">
       <div id="salidaInfo" class="hint"></div>
 
+      <label id="boxSinCarga" style="display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;background:#fff8dc;border:1px solid #e6c200;border-radius:8px;font-size:13px;font-weight:600;color:#5b4a00;cursor:pointer;">
+        <input type="checkbox" id="chkSinCarga" style="width:20px;height:20px;margin:0;flex:0 0 auto;">
+        <span>Salida sin carga (no cargó): registrar solo el RUT, sin andén, patente, pallets ni ruta</span>
+      </label>
+
       <div id="salidaSupervisorNote" style="display:none;background:#eaf3ea;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:12.5px;color:var(--ok);font-weight:600;">
         ✓ Supervisor detectado: solo se registra el RUT y la hora de salida, sin datos de carga.
       </div>
@@ -739,9 +744,13 @@ let horaIngresoHoyCache = null;
 let cargoDetectadoSalida = null;
 let tipoDocSalida = "RUT";
 
+document.addEventListener("change", e=>{ if(e.target && e.target.id === "chkSinCarga") actualizarVisibilidadCamposSalida(); });
+
 function actualizarVisibilidadCamposSalida(){
   const esSupervisor = cargoDetectadoSalida === "Supervisor";
-  document.getElementById("salidaCamposExtra").style.display = esSupervisor ? "none" : "block";
+  const sinCarga = !esSupervisor && document.getElementById("chkSinCarga").checked;
+  document.getElementById("boxSinCarga").style.display = esSupervisor ? "none" : "flex";
+  document.getElementById("salidaCamposExtra").style.display = (esSupervisor || sinCarga) ? "none" : "block";
   document.getElementById("salidaSupervisorNote").style.display = esSupervisor ? "block" : "none";
 }
 
@@ -814,19 +823,21 @@ document.getElementById("btnSalida").addEventListener("click", async ()=>{
   if(btn.disabled) return;
   const rutRaw = docSalidaInput.value.trim();
   const esSupervisor = cargoDetectadoSalida === "Supervisor";
+  const sinCarga = !esSupervisor && document.getElementById("chkSinCarga").checked;
+  const sinDatos = esSupervisor || sinCarga; // solo RUT + hora de salida
 
-  const anden = esSupervisor ? "" : document.getElementById("andenSalida").value.trim();
-  const patente = esSupervisor ? "" : document.getElementById("patenteSalida").value.trim().toUpperCase();
-  const pallet = esSupervisor ? "" : document.getElementById("palletSalida").value;
-  const rutaNum = esSupervisor ? "" : document.getElementById("rutaSalidaNum").value.trim();
+  const anden = sinDatos ? "" : document.getElementById("andenSalida").value.trim();
+  const patente = sinDatos ? "" : document.getElementById("patenteSalida").value.trim().toUpperCase();
+  const pallet = sinDatos ? "" : document.getElementById("palletSalida").value;
+  const rutaNum = sinDatos ? "" : document.getElementById("rutaSalidaNum").value.trim();
   const ruta = rutaNum ? "VEH-" + rutaNum : "";
-  const idRuta = esSupervisor ? "" : document.getElementById("idRutaSalida").value.trim();
+  const idRuta = sinDatos ? "" : document.getElementById("idRutaSalida").value.trim();
 
   if(!rutRaw){
     toast("Ingresa el RUT o documento", "err");
     return;
   }
-  if(!esSupervisor && (!anden || !patente || !ruta || !idRuta)){
+  if(!sinDatos && (!anden || !patente || !ruta || !idRuta)){
     toast("Completa todos los campos obligatorios", "err");
     return;
   }
@@ -861,6 +872,8 @@ document.getElementById("btnSalida").addEventListener("click", async ()=>{
 
   if(resultado.queued){
     toast(`Sin conexión — se guardará automáticamente cuando vuelva la señal`, "ok");
+  }else if(sinCarga){
+    toast(`Salida sin carga registrada · ${horaSalidaAhora}`, "ok");
   }else if(esSupervisor){
     toast(`Salida de Supervisor registrada · ${horaSalidaAhora}`, "ok");
   }else if(horaIngresoHoyCache){
@@ -876,6 +889,7 @@ document.getElementById("btnSalida").addEventListener("click", async ()=>{
   document.getElementById("rutaSalidaNum").value = "";
   document.getElementById("idRutaSalida").value = "";
   cargoDetectadoSalida = null;
+  document.getElementById("chkSinCarga").checked = false;
   actualizarVisibilidadCamposSalida();
   document.getElementById("salidaInfo").textContent = "";
   horaIngresoHoyCache = null;
