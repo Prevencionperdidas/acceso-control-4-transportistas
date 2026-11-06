@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -170,6 +170,23 @@
     .dash-side{position:sticky;top:112px;}
     .dcard.span4{grid-column:span 4;} .dcard.span6{grid-column:span 6;}
   }
+  /* ===== Compactar dashboard (menos scroll) ===== */
+  .dash-main,.dash-side{gap:10px;}
+  .dash-grid{gap:10px;}
+  .dcard-h{padding:7px 12px;font-size:13px;}
+  .dcard-b{padding:9px 12px;}
+  .dash-main .bar-chart{height:100px;padding-top:18px;gap:6px;}
+  .dash-main .bar-chart-fixed{height:100px;}
+  .dash-main .bar-chart-fixed .bar-label{margin-top:2px;}
+  .dscroll{max-height:136px;}
+  .dash-main .veh-row,.dash-main .empresa-row{padding:4px 10px;margin-bottom:4px;font-size:12px;}
+  .dash-main .veh-block-chart{height:auto;min-height:0;padding-top:2px;}
+  .veh-block-chart .vb-barwrap{height:80px;padding-top:16px;}
+  #detalleTable td{padding:4px 6px;font-size:11.5px;border-top:1px solid #eee;white-space:nowrap;}
+  .pager{margin-top:6px;}
+  .dash-side .kpi{padding:8px 6px;} .dash-side .kpi-num{font-size:22px;}
+  .dash-side label{margin:8px 0 3px;}
+  .dash-side .btn-primary,.dash-side .btn-secondary{margin-top:6px;padding:10px;}
 </style>
 </head>
 <body>
@@ -1123,7 +1140,7 @@ async function renderHistorial(){
 let dashCargadoUnaVez = false;
 let dashPage = 1;
 let dashTotalPages = 1;
-const DASH_PAGE_SIZE = 15;
+const DASH_PAGE_SIZE = 10;
 
 document.getElementById("btnActualizarDash").addEventListener("click", ()=>{ dashPage = 1; cargarDashboard(); });
 document.getElementById("pagerPrev").addEventListener("click", ()=>{ if(dashPage>1){ dashPage--; cargarDashboard(); } });
