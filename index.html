@@ -1,4 +1,4 @@
-<!DOCTYPE html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -147,7 +147,7 @@
 
 
   /* ===== Dashboard gerencial (horizontal) ===== */
-  main.wide{max-width:1500px;}
+  main.wide{max-width:none;width:100%;padding:12px 14px 80px;box-sizing:border-box;}
   .dash-grid{display:grid;grid-template-columns:1fr;gap:14px;}
   .dash-side{display:flex;flex-direction:column;gap:14px;}
   .dash-main{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-content:start;min-width:0;}
@@ -166,10 +166,11 @@
   .veh-block-chart .vb-chip{display:block;width:100%;font-size:9.5px;font-weight:700;background:#eef3fa;color:var(--ikea-blue);border-radius:4px;padding:2px 3px;margin-bottom:3px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;}
   .veh-block-chart .vb-chip i{font-style:normal;color:#c0392b;margin-left:2px;}
   @media (min-width:960px){
-    .dash-grid{grid-template-columns:300px 1fr;align-items:start;}
+    .dash-grid{grid-template-columns:clamp(260px,20vw,360px) minmax(0,1fr);align-items:start;}
     .dash-side{position:sticky;top:112px;}
     .dcard.span4{grid-column:span 4;} .dcard.span6{grid-column:span 6;}
   }
+  @media (max-width:959px){ main.wide{padding:12px 10px 80px;} .dscroll{max-height:200px;} }
   /* ===== Compactar dashboard (menos scroll) ===== */
   .dash-main,.dash-side{gap:10px;}
   .dash-grid{gap:10px;}
@@ -358,7 +359,7 @@
       <div class="dcard span6">
         <div class="dcard-h">Ingreso de transportistas por franja horaria (30 min)</div>
         <div class="dcard-b">
-          <div class="bar-chart-scroll"><div id="chartPorBloque" class="bar-chart bar-chart-fixed">Sin datos aún.</div></div>
+          <div class="bar-chart-scroll"><div id="chartPorBloque" class="bar-chart bar-chart-fixed veh-block-chart">Sin datos aún.</div></div>
         </div>
       </div>
 
@@ -381,7 +382,7 @@
         <div class="dcard-h">Salidas de VEH por bloque de 30 min · con VEH asignado</div>
         <div class="dcard-b">
           <div class="bar-chart-scroll"><div id="chartSalidasVeh" class="bar-chart bar-chart-fixed veh-block-chart">Sin datos aún.</div></div>
-          <p class="hint" style="margin-top:6px;">Cada columna es una franja de 30 min (suma del período filtrado); debajo de cada barra se identifica el N° de VEH que salió y cuántas veces. No incluye salidas sin VEH (ej. Supervisor).</p>
+          <p class="hint" style="margin-top:6px;">Cada columna es una franja de 30 min (suma del período filtrado) y respeta los filtros de cargo y RUT. Cuenta 1 salida por vehículo (mismo VEH + pallets + ID de ruta + patente, en el mismo día, con salidas a menos de 60 min): si salen conductor y peoneta juntos, suma 1. No incluye salidas sin VEH (ej. Supervisor).</p>
         </div>
       </div>
 
@@ -1222,6 +1223,20 @@ function renderBarChart(containerId, data, color){
   }).join("");
 }
 
+// Mismo formato que el gráfico de salidas de VEH: hora horizontal y legible bajo cada barra.
+function renderBloqueChart(containerId, data, color){
+  const el = document.getElementById(containerId);
+  if(!data || !data.length){ el.innerHTML = "<p style='color:#888;font-size:12px;'>Sin datos en el rango seleccionado.</p>"; return; }
+  const max = Math.max(1, ...data.map(d=>d.count));
+  el.innerHTML = data.map(d=>{
+    const h = Math.max(3, Math.round((d.count/max)*100));
+    return `<div class="vb-col">
+      <div class="vb-barwrap"><div class="vb-bar" style="height:${h}%;background:${color};border-color:${color};"><span class="val">${d.count}</span></div></div>
+      <div class="vb-hora">${d.label}</div>
+    </div>`;
+  }).join("");
+}
+
 function renderSalidasVehPorBloque(data){
   const el = document.getElementById("chartSalidasVeh");
   if(!data.length){ el.innerHTML = "<p style='color:#888;font-size:12px;'>Sin salidas con VEH en el rango seleccionado.</p>"; return; }
@@ -1265,7 +1280,7 @@ async function cargarDashboard(){
   document.getElementById("kpiSupervisor").textContent = (resp.cargoCounts && resp.cargoCounts.Supervisor) || 0;
 
   renderBarChart("chartPorDia", resp.porDia || [], "#0058A3");
-  renderBarChart("chartPorBloque", resp.porBloqueHorario || [], "#0058A3");
+  renderBloqueChart("chartPorBloque", resp.porBloqueHorario || [], "#0058A3");
   renderBarChart("chartEntradaSalida", [
     {label:"Entrada", count: resp.totalIngresos || 0},
     {label:"Salida", count: resp.totalSalidas || 0}
